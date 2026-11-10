@@ -1,49 +1,43 @@
 import os
 import logging
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# Enable logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+# --- 1. Simple Health Check Server ---
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+    def log_message(self, format, *args):
+        pass # Silence health check logs
+
+def run_health_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthHandler)
+    print(f"Health check listening on port {port}")
+    server.serve_forever()
+
+# --- 2. Your Bot Logic ---
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # A simple menu compliant with Telegram Ads requirements (no external links)
-    await update.message.reply_text(
-        "⚽ **Sports Score Bot**\n\n"
-        "Use the commands below to check scores:\n"
-        "/score - Get a sample live score update\n"
-        "/help - Show this message\n\n"
-        "Note: This bot provides simulated data for demonstration and does not link to gambling or third-party sites.",
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text("⚽ Sports Score Bot is active. Use /score for a sample update.")
 
 async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Simulated simple function. In a real scenario, you would fetch from an API here.
-    # Keeping it simple and self-contained ensures the bot always responds (Ads requirement).
-    await update.message.reply_text(
-        "🏀 **NBA (Sample)**\n"
-        "Lakers 102 - 98 Celtics (Q4 - 02:15)\n\n"
-        "⚾ **MLB (Sample)**\n"
-        "Yankees 3 - 1 Red Sox (Top 7th)\n\n"
-        "⚽ **EPL (Sample)**\n"
-        "Arsenal 2 - 2 Liverpool (FT)\n\n"
-        "_Data is simulated for demonstration._"
-    )
+    await update.message.reply_text("🏀 Sample Score: Lakers 102 - 98 Celtics (Q4)")
 
 if __name__ == '__main__':
-    # Railway uses the PORT environment variable, but for polling, we just need the token.
+    # Start the health check in the background
+    threading.Thread(target=run_health_server, daemon=True).start()
+
     TOKEN = os.environ.get("BOT_TOKEN")
     if not TOKEN:
         raise ValueError("No BOT_TOKEN found in environment variables.")
         
     application = ApplicationBuilder().token(TOKEN).build()
-
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", start))
     application.add_handler(CommandHandler("score", score))
-
-    # Run the bot (Polling mode works well on Railway for simple bots)
     application.run_polling()
